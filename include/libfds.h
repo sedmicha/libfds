@@ -61,5 +61,6 @@
 #include <libfds/template.h>
 #include <libfds/template_mgr.h>
 #include <libfds/xml_parser.h>
+#include <libfds/filter.h>
 
 #endif /* LIBFDS_H */
