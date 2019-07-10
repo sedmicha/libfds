@@ -16,6 +16,7 @@ add_subdirectory(drec)
 
 unit_tests_register_test(api.cpp)
 # >> Add your new tests or test subdirectories HERE <<
+add_subdirectory(filter)
 
 # Enable code coverage target (i.e. make coverage) when appropriate build
 # type is chosen.
