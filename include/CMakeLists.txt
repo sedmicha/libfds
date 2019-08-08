@@ -20,6 +20,7 @@ set(SUB_HEADERS
 	libfds/template_mgr.h
 	libfds/xml_parser.h
 	libfds/filter.h
+	libfds/trie.h
 	)
 
 # Installation targets
