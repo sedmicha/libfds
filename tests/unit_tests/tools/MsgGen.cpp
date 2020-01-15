@@ -434,6 +434,40 @@ ipfix_drec::append_ip(const std::string &value)
 }
 
 void
+ipfix_drec::append_mac(const std::string &value)
+{
+    uint8_t out_buff[6];
+    char last;
+    unsigned int buffer[6];
+    size_t size = 6;
+
+    if (std::sscanf(value.c_str(),
+        "%02x:%02x:%02x:%02x:%02x:%02x%c",
+        &buffer[0], &buffer[1], &buffer[2],
+        &buffer[3], &buffer[4], &buffer[5], &last) != 6)
+   {
+       throw std::invalid_argument("Unable to parse MAC address!");
+   }
+
+   for (int i = 0; i < 6; i++){
+       out_buff[i] = buffer[i];
+   }
+
+   uint8_t *mem = mem_reserve(size);
+   if (fds_set_mac(mem, size, out_buff) != FDS_OK) {
+       throw std::invalid_argument("fds_set_mac() failed!");
+   }
+}
+
+void ipfix_drec::append_stlist(const ipfix_stlist &stlist) {
+    const uint8_t *src = stlist.front();
+    const size_t size = stlist.size();
+
+    uint8_t *dst = mem_reserve(size);
+    std::memcpy(dst, src, size);
+}
+
+void
 ipfix_drec::append_octets(const void *data, uint16_t data_len, bool var_field)
 {
     if (var_field) {
@@ -444,4 +478,79 @@ ipfix_drec::append_octets(const void *data, uint16_t data_len, bool var_field)
     if (fds_set_octet_array(mem, data_len, data) != FDS_OK) {
         throw std::invalid_argument("fds_set_octet_array() failed!");
     }
+}
+
+void ipfix_drec::append_blist(const ipfix_blist &blist) {
+    const uint8_t *src = blist.front();
+    const size_t size = blist.size();
+
+    uint8_t *dst = mem_reserve(size);
+    std::memcpy(dst, src, size);
+}
+
+void ipfix_blist::append_field(const ipfix_field &field) {
+    const uint8_t *src = field.front();
+    const size_t size = field.size();
+
+    uint8_t *dst = mem_reserve(size);
+    std::memcpy(dst, src, size);
+}
+
+void ipfix_blist::header_short(uint8_t semantic, uint16_t field_id, uint16_t elem_length) {
+    //adding semantic
+    uint16_t size = 1U;
+    uint8_t *mem = mem_reserve(size);
+    if (fds_set_uint_be(mem, size, semantic) != FDS_OK) {
+        throw std::invalid_argument("fds_set_int_be() failed!");
+    }
+    //adding field_id and element length
+    mem = mem_reserve(4U);
+    uint16_t *mem_16b = reinterpret_cast<uint16_t *>(&mem[0]);
+    mem_16b[0] = htons(field_id);
+    mem_16b[1] = htons(elem_length);
+}
+
+void ipfix_blist::header_long(uint8_t semantic, uint16_t field_id, uint16_t elem_length, uint32_t en) {
+    // Set the enterprise bit on
+    field_id = static_cast<uint16_t>(field_id | (1U << 15));
+    // Add the short header
+    this->header_short(semantic,field_id,elem_length);
+    // Add the Enterprise number
+    uint32_t *mem = reinterpret_cast<uint32_t *>(mem_reserve(4U));
+    mem[0] = htonl(en);
+}
+
+void ipfix_stlist::subTemp_header(uint8_t semantic, uint16_t template_id) {
+    this->subTempMulti_header(semantic);
+    uint8_t *mem = mem_reserve(2U);
+    if (fds_set_uint_be(mem, 2U, template_id) != FDS_OK) {
+        throw std::invalid_argument("fds_set_int_be() failed!");
+    }
+}
+
+void ipfix_stlist::subTempMulti_header(uint8_t semantic) {
+    uint8_t *mem = mem_reserve(1U);
+    if (fds_set_uint_be(mem, 1U, semantic) != FDS_OK) {
+        throw std::invalid_argument("fds_set_int_be() failed!");
+    }
+}
+
+void ipfix_stlist::subTempMulti_data_hdr(uint16_t template_id, uint16_t size) {
+    uint8_t *mem = mem_reserve(2U);
+    if (fds_set_uint_be(mem, 2U, template_id) != FDS_OK) {
+        throw std::invalid_argument("fds_set_int_be() failed!");
+    }
+    mem = mem_reserve(2U);
+    if (fds_set_uint_be(mem, 2U, size+4U) != FDS_OK) {
+        throw std::invalid_argument("fds_set_int_be() failed!");
+    }
+}
+
+void ipfix_stlist::append_data_record(const ipfix_drec &drec) {
+    const uint8_t *src = drec.front();
+    const size_t size = drec.size();
+
+    uint8_t *dst = mem_reserve(size);
+    std::memcpy(dst, src, size);
+
 }

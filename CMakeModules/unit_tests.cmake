@@ -78,7 +78,8 @@ if (ENABLE_TESTS_VALGRIND)
 		"--quiet"
 		"--error-exitcode=1"
 		"--num-callers=32"
-		)
+		"--suppressions=${CMAKE_SOURCE_DIR}/CMakeModules/valgrind/fds.supp"
+	)
 endif()
 
 # ------------------------------------------------------------------------------
@@ -166,7 +167,7 @@ function(coverage_add_target)
 		COMMAND "${PATH_LCOV}" --directory . --zerocounters --quiet
 
 		# Run tests
-		COMMAND "${CMAKE_CTEST_COMMAND}" --quiet
+		COMMAND "${CMAKE_CTEST_COMMAND}"
 
 		# Capture the counters
 		COMMAND "${PATH_LCOV}"
@@ -177,7 +178,7 @@ function(coverage_add_target)
 			--output-file "${COVERAGE_FILE_RAW}"
 		# Remove coverage of Google Test files, system headers, etc.
 		COMMAND "${PATH_LCOV}"
-			--remove "${COVERAGE_FILE_RAW}" 'gtest/*' 'tests/*' '/usr/*'
+			--remove "${COVERAGE_FILE_RAW}" '${CMAKE_BINARY_DIR}/*' '${CMAKE_SOURCE_DIR}/tests/*' '/usr/*'
 			--rc lcov_branch_coverage=1
 			--quiet --output-file "${COVERAGE_FILE_CLEAN}"
 		# Generate HTML report

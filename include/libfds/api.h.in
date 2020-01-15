@@ -88,6 +88,9 @@ extern "C" {
 #define FDS_ERR_SYNTAX          (-10)
 /** Status code for semantic error                                            */
 #define FDS_ERR_SEMANTIC        (-11)
+/** Internal error (can be also caused by malformed file)                     */
+#define FDS_ERR_INTERNAL        (-100)
+
 /**
  * \brief Get the default directory with configuration
  * \return Statically allocated string

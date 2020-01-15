@@ -58,6 +58,7 @@ extern "C" {
 
 #include "iemgr.h"
 #include <libfds/api.h>
+#include <libfds/drec.h>
 
 /**
  * \defgroup fds_converters Data conversion
@@ -960,6 +961,8 @@ fds_get_mac(const void *field, size_t size, void *value)
  *   because it just copy a raw content of memory. Therefore, it is up to user
  *   to make sure that value is in the appropriate order in the memory of the
  *   the host computer.
+ * \note The \p size of the \p field can be also zero.
+ *
  * \param[in]  field  Pointer to a data field
  * \param[in]  size   Size of the data field
  * \param[out] value  Pointer to the output buffer
@@ -971,10 +974,6 @@ fds_get_mac(const void *field, size_t size, void *value)
 static inline int
 fds_get_octet_array(const void *field, size_t size, void *value)
 {
-    if (size == 0) {
-        return FDS_ERR_ARG;
-    }
-
     memcpy(value, field, size);
     return FDS_OK;
 }
@@ -984,21 +983,20 @@ fds_get_octet_array(const void *field, size_t size, void *value)
  *
  * \note This function should be independent of endianness of a host computer
  *   because string is always stored as an array of individual bytes.
+ * \note The \p size of the \p field can be also zero.
+ *
  * \param[in]  field  Pointer to a data field
  * \param[in]  size   Size of the data field
  * \param[out] value  Pointer to the output buffer
  * \remark Can be implemented as a wrapper over memcpy.
  * \warning The \p value MUST be at least \p size bytes long.
+ * \warning The terminating null byte is not added!
  * \return On success returns #FDS_OK. Otherwise returns
  *   #FDS_ERR_ARG.
  */
 static inline int
 fds_get_string(const void *field, size_t size, char *value)
 {
-    if (size == 0) {
-        return FDS_ERR_ARG;
-    }
-
     memcpy(value, field, size);
     return FDS_OK;
 }
@@ -1345,6 +1343,131 @@ fds_string2str(const void *field, size_t size, char *str, size_t str_size);
 FDS_API int
 fds_string_utf8check(const void *field, size_t size);
 
+
+/**
+ * @}
+ *
+ * \defgroup fds_to_json To JSON
+ * \brief Read and convert a value from IPFIX Data Record to JSON
+ *
+ * @{
+ */
+
+/**
+ * \enum fds_convert_drec2json
+ * \brief Output format flags for conversion from IPFX Data Record to JSON
+ */
+enum fds_convert_drec2json {
+    /**
+     * Allow to realloc output buffer if its size is not sufficient.
+     */
+    FDS_CD2J_ALLOW_REALLOC   = (1U << 0),
+    /**
+     * In case of a Biflow record, interpret it from reverse point of view.
+     * By default, it is interpreted from forward point of view.
+     */
+    FDS_CD2J_BIFLOW_REVERSE  = (1U << 1),
+    /**
+     * In case of a Biflow record, skip (i.e. ignore) all reverse fields.
+     * The flag can be combined with ::FDS_CD2J_BIFLOW_REVERSE. In that case,
+     * the filter is applied on the remapped fields.
+     */
+    FDS_CD2J_REVERSE_SKIP    = (1U << 2),
+    /**
+     * Skip fields with unknown definition of an Information Element.
+     */
+    FDS_CD2J_IGNORE_UNKNOWN  = (1U << 3),
+    /**
+     * Convert standard TCP flags identification (i.e. "iana:tcpControlBits")
+     * to textual representation. For example, ".A..S.".
+     */
+    FDS_CD2J_FORMAT_TCPFLAGS = (1U << 4),
+    /**
+     * Convert standart protocol identification (i.e. "iana:protocolIdentifier")
+     * to textual representation. For example, instead of 6 writes "TCP").
+     */
+    FDS_CD2J_FORMAT_PROTO    = (1U << 5),
+    /**
+     * Ignore non-printable characters (newline, tab, control characters, etc.)
+     * in IPFIX string fields instead of escaping them.
+     */
+    FDS_CD2J_NON_PRINTABLE   = (1U << 6),
+    /**
+     * Use the format of unknown Information Elements (i.e. "enXX:idYY") for
+     * names for all name-value pairs. E.g., instead of "iana:octetDeltaCount"
+     * use always "en0:id1".
+     */
+    FDS_CD2J_NUMERIC_ID      = (1U << 7),
+    /**
+     * Convert all timestamps to ISO 8601 textual representation of UTC with
+     * milliseconds, e.g. "2019-05-22T22:34:57.828Z"
+     */
+    FDS_CD2J_TS_FORMAT_MSEC  = (1U << 8),
+    /**
+     * Always convert IPFIX octetArray field as hexadecimal value in network
+     * byte order i.e. never try to interpret is as unsigned integer.
+     * For example, "0x8BADF00D".
+     */
+    FDS_CD2J_OCTETS_NOINT    = (1U << 9)
+};
+
+/**
+ * @brief Convert IPFIX Data Record to JSON
+ *
+ * All fields from the Data Record are converted to JSON. Output format can be
+ * changed using combination of ::fds_convert_drec2json.
+ *
+ * However, by default:
+ *   - All fields in the Data Record are formatted as name-value pairs where
+ *     the names (i.e. keys) are identification of Information Elements (IEs).
+ *     Usually, names are represented as "\<scope\>:\<name\>", where \<scope\>
+ *     is a name of an organization that manages the field and \<name\> is
+ *     the field identification within the scope. For example.
+ *     "iana:octetDeltaCount". However, if an IE definition is unknown, keys use
+ *     format "enXX:idYY", where XX is an Enterprise Number and YY is
+ *     an Information Element ID.
+ *   - Fields with unknown definition of their Information Elements are
+ *     interpreted as octetArray.
+ *   - Fields with octetArray type are interpreted as unsigned integer if their
+ *     size is less or equal to 8 bytes. Fields with the size above the limit
+ *     are formatted as hexadecimal value in network byte order. To change this
+ *     behavior, see the conversion flags.
+ *   - If conversion of an IPFIX field of the Data Record fails (for example,
+ *     due to invalid size or value), "null" is used as its value.
+ *   - All timestamps are formatted as number of milliseconds from UNIX Epoch.
+ *
+ * @note
+ *   If the @p buffer contains pointer to NULL, a sufficient buffer will
+ *   be allocated and must be later freed by the user using free(). Size of
+ *   the buffer is placed to \p str_size and can be greater than the length
+ *   of result!
+ * @note
+ *   If ::FDS_CD2J_ALLOW_REALLOC flag is set and the output buffer size is not
+ *   sufficient, the buffer is reallocated using realloc() and new size
+ *   (usually greater than the length of the result) is stored to \p str_size.
+ *
+ * @param[in]     rec      IPFIX Data Record to convert
+ * @param[in]     flags    Conversion flags (see ::fds_convert_drec2json)
+ * @param[in]     ie_mgr   Information Element manager (necessary for decoding
+ *                         basicLists, can be NULL)
+ * @param[out]    str      Output buffer where the JSON string will be stored
+ * @param[in,out] str_size Size of the output buffer
+ *
+ * \return On success returns a number of characters (excluding the termination
+ *   null byte) placed into the buffer \p str. Therefore, if the result is
+ *   greater that or equal to zero, conversion was successful (Note: the null
+ *   byte has been also successfully added at the end of the JSON string)
+ * \return #FDS_ERR_BUFFER if the length of the result string (including the
+ *   termination null byte) would exceed \p str_size and #FDS_CD2J_ALLOW_REALLOC
+ *   flag is not set. The context written to the output buffer \p str is
+ *   undefined.
+ * \return #FDS_ERR_NOMEM in case of memory allocation error (can happen only
+ *   if #FDS_CD2J_ALLOW_REALLOC is set or \p str contains reference to NULL)
+ */
+FDS_API int
+fds_drec2json(const struct fds_drec *rec, uint32_t flags, const fds_iemgr_t *ie_mgr, char **str,
+    size_t *str_size);
+
 #ifdef __cplusplus
 }
 #endif
@@ -1355,4 +1478,3 @@ fds_string_utf8check(const void *field, size_t size);
  * @}
  * @}
  */
-

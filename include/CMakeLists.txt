@@ -12,8 +12,9 @@ set(TOP_HEADERS
 set(SUB_HEADERS
 	"${PROJECT_BINARY_DIR}/include/libfds/api.h"
 	libfds/converters.h
-	libfds/drec.h
 	libfds/iemgr.h
+	libfds/drec.h
+	libfds/file.h
 	libfds/ipfix_parsers.h
 	libfds/ipfix_structs.h
 	libfds/template.h
@@ -21,9 +22,8 @@ set(SUB_HEADERS
 	libfds/xml_parser.h
 
 	libfds/filter.h
-
 	libfds/trie.h
-	)
+)
 
 # Installation targets
 install(

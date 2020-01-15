@@ -54,8 +54,9 @@
  */
 #include <libfds/api.h>
 #include <libfds/converters.h>
-#include <libfds/drec.h>
 #include <libfds/iemgr.h>
+#include <libfds/drec.h>
+#include <libfds/file.h>
 #include <libfds/ipfix_parsers.h>
 #include <libfds/ipfix_structs.h>
 #include <libfds/template.h>
