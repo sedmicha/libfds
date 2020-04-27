@@ -30,6 +30,7 @@ add_subdirectory(drec)
 add_subdirectory(converters)
 add_subdirectory(parsers)
 add_subdirectory(filter)
+add_subdirectory(ipfix_filter)
 add_subdirectory(trie)
 add_subdirectory(file)
 
@@ -44,6 +45,7 @@ add_library(
 	$<TARGET_OBJECTS:converters_obj>   # Converters
 	$<TARGET_OBJECTS:parsers_obj>      # Parsers
 	$<TARGET_OBJECTS:filter_obj>       # Filter
+	$<TARGET_OBJECTS:ipfix_filter_obj> # IPFIX Filter
 	$<TARGET_OBJECTS:trie_obj>         # Trie
 	$<TARGET_OBJECTS:file_obj>         # File
 
